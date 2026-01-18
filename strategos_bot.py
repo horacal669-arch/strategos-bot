@@ -26,8 +26,9 @@ FILTRO_TP1_MIN = 7.0
 MODO_REAL = False
 COMISION_BINANCE = 0.0004
 
-BINANCE_API_KEY = "IvHSUePzu9a2mLq1aQ7LBedcmkUoGIAxoNoDM6D342852Z59ZHf1RQUFRdWEPGJf"
-BINANCE_API_SECRET = "t3iPavC9D3t4YgxiE6npqnXs7IbLwavt8fdhqvca9GW4uFu88wPMMcJQ6YPMHYCg"
+import os
+BINANCE_API_KEY = os.getenv('BINANCE_API_KEY', '')
+BINANCE_API_SECRET = os.getenv('BINANCE_API_SECRET', '')
 
 BASE_PATH = r"C:\Users\HORACIO\BotfinalClaude"
 BOT_CONFIG_FILE = os.path.join(BASE_PATH, "bot_config.json")
@@ -986,4 +987,5 @@ if __name__ == '__main__':
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
+
         print("\n🛑 Detenido")
