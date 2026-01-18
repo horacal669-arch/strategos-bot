@@ -7,8 +7,8 @@ from zoneinfo import ZoneInfo
 # ==========================================
 # CONFIGURACIÓN
 # ==========================================
-TG_TOKEN = "8203230724:AAHU9VOTSaakauqrvB3IrWl2GkAzrAsdqQ4"
-TG_CHAT = "6618443331"
+TG_TOKEN = ""
+TG_CHAT = ""
 
 PAIRS = [
     "BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT",
@@ -989,3 +989,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
 
         print("\n🛑 Detenido")
+
