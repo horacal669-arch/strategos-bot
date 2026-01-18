@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: strategos-dashboard
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python api.py
+    
+  - type: worker
+    name: strategos-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python strategos_bot.py
