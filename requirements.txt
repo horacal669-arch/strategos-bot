@@ -2,5 +2,5 @@ Flask==3.0.0
 flask-cors==4.0.0
 ccxt==4.5.33
 pandas==2.1.4
-
 requests==2.31.0
+Flask-Session==0.8.0
