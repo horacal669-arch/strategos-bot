@@ -73,10 +73,8 @@ def save_keys():
 
 @app.route('/api/stats')
 def stats():
-    if 'user_id' not in session:
-        return jsonify({'error': 'No autenticado'}), 401
     
-    user_id = session['user_id']
+    user_id = 1
     stats_file = os.path.join(BASE_PATH, f'stats_user_{user_id}.json')
     
     try:
@@ -143,3 +141,4 @@ def reset():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
