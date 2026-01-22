@@ -4,3 +4,7 @@ ccxt==4.5.33
 pandas==2.1.4
 requests==2.31.0
 Flask-Session==0.8.0
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+PyJWT==2.8.0
+tzdata==2024.1
