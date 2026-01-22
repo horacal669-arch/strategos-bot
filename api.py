@@ -1,237 +1,319 @@
-import psycopg2
-import hashlib
-import os
+from flask import Flask, jsonify, send_from_directory, request, session
+from flask_cors import CORS
+import json, os
 from datetime import datetime, timedelta
+import database
+import jwt
 
-# PostgreSQL connection
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/strategos")
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'cambiar_en_produccion_12345')
+CORS(app, supports_credentials=True, origins=['*'])
 
-def get_conn():
-    return psycopg2.connect(DATABASE_URL)
+JWT_SECRET = os.getenv('JWT_SECRET', 'jwt_secret_cambiar_12345')
 
-def init_db():
-    """Crear tablas si no existen"""
-    conn = get_conn()
-    c = conn.cursor()
-    
-    # Tabla usuarios
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        plan TEXT DEFAULT 'free',
-        plan_expiry TIMESTAMP,
-        whatsapp TEXT,
-        api_key TEXT,
-        api_secret TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_login TIMESTAMP,
-        is_active BOOLEAN DEFAULT TRUE
-    )''')
-    
-    # Tabla pagos
-    c.execute('''CREATE TABLE IF NOT EXISTS payments (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        plan TEXT NOT NULL,
-        amount DECIMAL(10,2),
-        payment_method TEXT,
-        status TEXT DEFAULT 'pending',
-        transaction_id TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    
-    # Tabla configuración bot por usuario
-    c.execute('''CREATE TABLE IF NOT EXISTS bot_configs (
-        user_id INTEGER PRIMARY KEY REFERENCES users(id),
-        auto_mode BOOLEAN DEFAULT FALSE,
-        modo_real BOOLEAN DEFAULT FALSE,
-        capital INTEGER DEFAULT 100,
-        leverage INTEGER DEFAULT 10,
-        max_ops INTEGER DEFAULT 2,
-        pares_permitidos TEXT DEFAULT '["BTC/USDT"]'
-    )''')
-    
-    conn.commit()
-    conn.close()
-    print("✅ Base de datos inicializada")
+# ==========================================
+# HELPER - JWT
+# ==========================================
+def generate_token(user_id):
+    """Generar JWT token"""
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.utcnow() + timedelta(days=7)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def crear_usuario(email, password, plan='free', whatsapp=None):
-    """Crear nuevo usuario con plan"""
+def verify_token(token):
+    """Verificar JWT token"""
     try:
-        conn = get_conn()
-        c = conn.cursor()
-        
-        # Calcular fecha de expiración
-        if plan == 'free':
-            expiry = datetime.now() + timedelta(days=7)
-        else:
-            expiry = datetime.now() + timedelta(days=30)
-        
-        c.execute(
-            'INSERT INTO users (email, password, plan, plan_expiry, whatsapp) VALUES (%s, %s, %s, %s, %s) RETURNING id',
-            (email, hash_password(password), plan, expiry, whatsapp)
-        )
-        user_id = c.fetchone()[0]
-        
-        # Crear configuración por defecto
-        max_ops_map = {'free': 2, 'basic': 3, 'premium': 5, 'vip': 999}
-        pares = '["BTC/USDT"]' if plan == 'free' else '[]'
-        
-        c.execute(
-            'INSERT INTO bot_configs (user_id, max_ops, pares_permitidos) VALUES (%s, %s, %s)',
-            (user_id, max_ops_map.get(plan, 2), pares)
-        )
-        
-        conn.commit()
-        conn.close()
-        return user_id
-    except Exception as e:
-        print(f"Error crear usuario: {e}")
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        return payload['user_id']
+    except:
         return None
 
-def verificar_login(email, password):
-    """Verificar credenciales y devolver user_id"""
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute(
-        'SELECT id, plan, plan_expiry, is_active FROM users WHERE email=%s AND password=%s',
-        (email, hash_password(password))
-    )
-    user = c.fetchone()
+def get_user_from_request():
+    """Obtener user_id desde token o sesión"""
+    # Intentar desde header Authorization
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+        user_id = verify_token(token)
+        if user_id:
+            return user_id
     
-    if user:
-        user_id, plan, expiry, is_active = user
-        
-        # Verificar si el plan expiró
-        if expiry and datetime.now() > expiry:
-            c.execute('UPDATE users SET is_active=FALSE WHERE id=%s', (user_id,))
-            conn.commit()
-            conn.close()
-            return None  # Plan expirado
-        
-        if not is_active:
-            conn.close()
-            return None
-        
-        # Actualizar last_login
-        c.execute('UPDATE users SET last_login=CURRENT_TIMESTAMP WHERE id=%s', (user_id,))
-        conn.commit()
-        conn.close()
-        return user_id
+    # Intentar desde sesión
+    if 'user_id' in session:
+        return session['user_id']
     
-    conn.close()
     return None
 
-def obtener_usuario(user_id):
-    """Obtener datos completos del usuario"""
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute('SELECT * FROM users WHERE id=%s', (user_id,))
-    user = c.fetchone()
-    conn.close()
-    
-    if user:
-        return {
-            'id': user[0],
-            'email': user[1],
-            'plan': user[3],
-            'plan_expiry': user[4],
-            'whatsapp': user[5],
-            'api_key': user[6],
-            'api_secret': user[7]
-        }
-    return None
+# ==========================================
+# RUTAS HTML
+# ==========================================
+@app.route('/')
+def index():
+    return send_from_directory('.', 'landing_comercial.html')
 
-def obtener_bot_config(user_id):
-    """Obtener configuración del bot para usuario"""
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute('SELECT * FROM bot_configs WHERE user_id=%s', (user_id,))
-    config = c.fetchone()
-    conn.close()
+@app.route('/pricing.html')
+def pricing():
+    return send_from_directory('.', 'pricing.html')
+
+@app.route('/dashboard.html')
+def dashboard():
+    return send_from_directory('.', 'dashboard.html')
+
+@app.route('/login.html')
+def login_page():
+    return send_from_directory('.', 'login.html')
+
+@app.route('/onboarding.html')
+def onboarding():
+    return send_from_directory('.', 'onboarding.html')
+
+@app.route('/terms.html')
+def terms():
+    return send_from_directory('.', 'terms.html')
+
+@app.route('/privacy.html')
+def privacy():
+    return send_from_directory('.', 'privacy.html')
+
+# ==========================================
+# API - AUTENTICACIÓN
+# ==========================================
+@app.route('/api/register', methods=['POST'])
+def register():
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+    plan = data.get('plan', 'free')
+    whatsapp = data.get('whatsapp')
     
+    if not email or not password:
+        return jsonify({'success': False, 'message': 'Faltan datos'}), 400
+    
+    user_id = database.crear_usuario(email, password, plan, whatsapp)
+    
+    if user_id:
+        token = generate_token(user_id)
+        session['user_id'] = user_id
+        return jsonify({
+            'success': True,
+            'user_id': user_id,
+            'token': token
+        })
+    else:
+        return jsonify({'success': False, 'message': 'Email ya registrado'}), 400
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+    
+    user_id = database.verificar_login(email, password)
+    
+    if user_id:
+        # Verificar plan activo
+        if not database.verificar_plan_activo(user_id):
+            return jsonify({
+                'success': False,
+                'message': 'Plan expirado. Por favor renueva tu suscripción.'
+            }), 403
+        
+        token = generate_token(user_id)
+        session['user_id'] = user_id
+        
+        user_data = database.obtener_usuario(user_id)
+        
+        return jsonify({
+            'success': True,
+            'user_id': user_id,
+            'token': token,
+            'plan': user_data['plan'],
+            'plan_expiry': user_data['plan_expiry'].isoformat() if user_data['plan_expiry'] else None
+        })
+    else:
+        return jsonify({'success': False, 'message': 'Credenciales incorrectas'}), 401
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.pop('user_id', None)
+    return jsonify({'success': True})
+
+# ==========================================
+# API - USUARIO
+# ==========================================
+@app.route('/api/user', methods=['GET'])
+def get_user():
+    user_id = get_user_from_request()
+    if not user_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    
+    user_data = database.obtener_usuario(user_id)
+    if not user_data:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+    
+    return jsonify({
+        'email': user_data['email'],
+        'plan': user_data['plan'],
+        'plan_expiry': user_data['plan_expiry'].isoformat() if user_data['plan_expiry'] else None,
+        'whatsapp': user_data['whatsapp']
+    })
+
+@app.route('/api/save-keys', methods=['POST'])
+def save_keys():
+    user_id = get_user_from_request()
+    if not user_id:
+        return jsonify({'success': False, 'message': 'No autenticado'}), 401
+    
+    data = request.json
+    api_key = data.get('api_key')
+    api_secret = data.get('api_secret')
+    
+    database.guardar_api_keys(user_id, api_key, api_secret)
+    return jsonify({'success': True})
+
+# ==========================================
+# API - STATS
+# ==========================================
+@app.route('/api/stats')
+def stats():
+    user_id = get_user_from_request()
+    if not user_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    
+    # Aquí deberías cargar las stats desde un archivo por usuario
+    # Por ahora retorno datos de ejemplo
+    stats_file = f'stats_user_{user_id}.json'
+    
+    try:
+        if os.path.exists(stats_file):
+            with open(stats_file, 'r') as f:
+                data = json.load(f)
+                s = data.get('stats', {})
+                total = s.get('wins', 0) + s.get('losses', 0) + s.get('be', 0)
+                wr = (s['wins']/total*100) if total > 0 else 0
+                return jsonify({
+                    'total_ops': total,
+                    'wins': s.get('wins', 0),
+                    'losses': s.get('losses', 0),
+                    'be': s.get('be', 0),
+                    'win_rate': round(wr, 1),
+                    'total_pnl': s.get('total_pnl', 0.0)
+                })
+    except:
+        pass
+    
+    return jsonify({
+        'total_ops': 0,
+        'wins': 0,
+        'losses': 0,
+        'be': 0,
+        'win_rate': 0,
+        'total_pnl': 0.0
+    })
+
+@app.route('/api/operations')
+def operations():
+    user_id = get_user_from_request()
+    if not user_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    
+    ops_file = f'operations_user_{user_id}.json'
+    
+    try:
+        if os.path.exists(ops_file):
+            with open(ops_file, 'r') as f:
+                ops = json.load(f)
+                return jsonify({'operations': ops})
+    except:
+        pass
+    
+    return jsonify({'operations': []})
+
+# ==========================================
+# API - CONFIG
+# ==========================================
+@app.route('/api/config')
+def get_config():
+    user_id = get_user_from_request()
+    if not user_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    
+    config = database.obtener_bot_config(user_id)
     if config:
-        return {
-            'auto_mode': config[1],
-            'modo_real': config[2],
-            'capital': config[3],
-            'leverage': config[4],
-            'max_ops': config[5],
-            'pares_permitidos': config[6]
-        }
-    return None
+        return jsonify(config)
+    
+    return jsonify({'error': 'Config no encontrada'}), 404
 
-def guardar_api_keys(user_id, api_key, api_secret):
-    """Guardar API keys de Binance"""
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute(
-        'UPDATE users SET api_key=%s, api_secret=%s WHERE id=%s',
-        (api_key, api_secret, user_id)
-    )
-    conn.commit()
-    conn.close()
+# ==========================================
+# API - PAGOS
+# ==========================================
+@app.route('/api/create-subscription', methods=['POST'])
+def create_subscription():
+    data = request.json
+    plan = data.get('plan')
+    email = data.get('email')
+    whatsapp = data.get('whatsapp')
+    payment_method = data.get('payment_method')
+    
+    # Crear usuario pendiente de pago
+    # En producción aquí irían las integraciones de pago reales
+    
+    return jsonify({
+        'success': True,
+        'message': 'Suscripción creada. Completa el pago.'
+    })
 
-def renovar_plan(user_id, plan, payment_id=None):
-    """Renovar plan de usuario"""
-    conn = get_conn()
-    c = conn.cursor()
+@app.route('/api/webhook/payment', methods=['POST'])
+def payment_webhook():
+    """Webhook para confirmar pagos (PayPal, Crypto, etc)"""
+    # Aquí procesarías webhooks de PayPal, Coinbase, etc.
+    data = request.json
     
-    expiry = datetime.now() + timedelta(days=30)
+    # Ejemplo: activar plan después de pago confirmado
+    user_id = data.get('user_id')
+    plan = data.get('plan')
     
-    c.execute(
-        'UPDATE users SET plan=%s, plan_expiry=%s, is_active=TRUE WHERE id=%s',
-        (plan, expiry, user_id)
-    )
+    if user_id and plan:
+        database.renovar_plan(user_id, plan)
+        return jsonify({'success': True})
     
-    # Actualizar max_ops según plan
-    max_ops_map = {'free': 2, 'basic': 3, 'premium': 5, 'vip': 999}
-    c.execute(
-        'UPDATE bot_configs SET max_ops=%s WHERE user_id=%s',
-        (max_ops_map.get(plan, 2), user_id)
-    )
-    
-    conn.commit()
-    conn.close()
+    return jsonify({'success': False}), 400
 
-def registrar_pago(user_id, plan, amount, payment_method, transaction_id=None):
-    """Registrar pago"""
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute(
-        'INSERT INTO payments (user_id, plan, amount, payment_method, transaction_id) VALUES (%s, %s, %s, %s, %s) RETURNING id',
-        (user_id, plan, amount, payment_method, transaction_id)
-    )
-    payment_id = c.fetchone()[0]
-    conn.commit()
-    conn.close()
-    return payment_id
+# ==========================================
+# API - ADMIN (solo para ti)
+# ==========================================
+@app.route('/api/admin/users', methods=['GET'])
+def admin_users():
+    # Aquí deberías validar que sea admin
+    # Por ahora retorna lista básica
+    # En producción: agregar autenticación admin
+    
+    return jsonify({
+        'message': 'Admin endpoint - implementar autenticación'
+    })
 
-def verificar_plan_activo(user_id):
-    """Verificar si el plan del usuario está activo"""
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute('SELECT plan, plan_expiry, is_active FROM users WHERE id=%s', (user_id,))
-    user = c.fetchone()
-    conn.close()
-    
-    if not user:
-        return False
-    
-    plan, expiry, is_active = user
-    
-    if not is_active:
-        return False
-    
-    if expiry and datetime.now() > expiry:
-        return False
-    
-    return True
+# ==========================================
+# HEALTH CHECK
+# ==========================================
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.now().isoformat()
+    })
 
-# Inicializar al importar
+# ==========================================
+# INICIO
+# ==========================================
 if __name__ == '__main__':
-    init_db()
+    print("="*60)
+    print("  🚀 STRATEGOS.HC API - COMERCIAL")
+    print("  Puerto: 5000")
+    print("="*60)
+    
+    # Inicializar DB
+    database.init_db()
+    
+    app.run(debug=False, host='0.0.0.0', port=5000)
