@@ -1,8 +1,52 @@
-services:
-  - type: web
-    name: strategos-dashboard
-    env: python
+databases:
+  - name: strategos-db
+    databaseName: strategos
+    user: strategos
     plan: free
-    runtime: python-3.11.9
+
+services:
+  # API Web
+  - type: web
+    name: strategos-api
+    env: python
+    region: oregon
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python api.py
+    startCommand: gunicorn api:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: strategos-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TG_TOKEN
+        sync: false
+      - key: TG_CHAT
+        sync: false
+    
+  # Bot Worker (1 instancia por ahora, luego escalar)
+  - type: worker
+    name: strategos-bot
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python strategos_bot.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: strategos-db
+          property: connectionString
+      - key: USER_ID
+        value: 1
+      - key: TG_TOKEN
+        sync: false
+      - key: TG_CHAT
+        sync: false
