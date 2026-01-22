@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STRATEGOS.HC - Bot Trading Automático</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--primary:#8b5cf6;--secondary:#6366f1;--dark:#0f172a;--darker:#020617;--accent:#a78bfa;--text:#e2e8f0;--dim:#94a3b8}
+body{font-family:Inter,sans-serif;background:var(--darker);color:var(--text);overflow-x:hidden}
+
+/* Hero */
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:40px 20px;background:linear-gradient(135deg,var(--darker),var(--dark));position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;width:500px;height:500px;background:radial-gradient(circle,rgba(139,92,246,0.3),transparent);border-radius:50%;top:-200px;right:-200px;animation:float 20s infinite}
+.hero::after{content:'';position:absolute;width:400px;height:400px;background:radial-gradient(circle,rgba(99,102,241,0.2),transparent);border-radius:50%;bottom:-150px;left:-150px;animation:float 25s infinite reverse}
+@keyframes float{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,30px)}}
+
+.hero-content{position:relative;z-index:1;max-width:900px}
+.hero-badge{display:inline-block;padding:8px 20px;background:rgba(139,92,246,0.2);border:1px solid var(--primary);border-radius:50px;font-size:13px;font-weight:700;color:var(--primary);margin-bottom:30px;text-transform:uppercase;letter-spacing:1px}
+.hero-title{font-size:clamp(40px,8vw,72px);font-weight:900;background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:20px;line-height:1.1}
+.hero-subtitle{font-size:clamp(18px,3vw,24px);color:var(--dim);margin-bottom:40px;max-width:700px;margin-left:auto;margin-right:auto}
+.cta-buttons{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.btn{padding:18px 40px;border-radius:12px;font-weight:800;font-size:16px;text-decoration:none;transition:all 0.3s;cursor:pointer;border:none}
+.btn-primary{background:linear-gradient(135deg,var(--primary),var(--secondary));color:white;box-shadow:0 10px 40px rgba(139,92,246,0.4)}
+.btn-primary:hover{transform:translateY(-3px);box-shadow:0 15px 50px rgba(139,92,246,0.6)}
+.btn-secondary{background:rgba(255,255,255,0.05);color:var(--text);border:1px solid rgba(255,255,255,0.1)}
+.btn-secondary:hover{background:rgba(255,255,255,0.1)}
+
+/* Stats */
+.stats{padding:80px 20px;background:var(--dark)}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:40px;max-width:1200px;margin:0 auto}
+.stat-item{text-align:center}
+.stat-number{font-size:48px;font-weight:900;color:var(--primary);margin-bottom:10px}
+.stat-label{color:var(--dim);font-size:14px;text-transform:uppercase;letter-spacing:1px}
+
+/* Features */
+.features{padding:100px 20px;background:var(--darker)}
+.section-title{text-align:center;font-size:clamp(32px,5vw,48px);font-weight:900;background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:60px}
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:30px;max-width:1200px;margin:0 auto}
+.feature-card{background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.2);border-radius:20px;padding:40px;transition:all 0.4s}
+.feature-card:hover{transform:translateY(-10px);border-color:var(--primary);box-shadow:0 20px 60px rgba(139,92,246,0.3)}
+.feature-icon{font-size:48px;margin-bottom:20px}
+.feature-title{font-size:24px;font-weight:800;margin-bottom:15px;color:var(--primary)}
+.feature-description{color:var(--dim);line-height:1.6}
+
+/* Pricing */
+.pricing{padding:100px 20px;background:var(--dark)}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:30px;max-width:1200px;margin:0 auto}
+.plan-card{background:rgba(139,92,246,0.05);border:2px solid rgba(139,92,246,0.2);border-radius:24px;padding:40px;transition:all 0.4s;position:relative}
+.plan-card.popular{border-color:var(--primary);transform:scale(1.05);box-shadow:0 20px 60px rgba(139,92,246,0.4)}
+.plan-card.popular::before{content:'MÁS POPULAR';position:absolute;top:-15px;left:50%;transform:translateX(-50%);background:var(--primary);padding:5px 20px;border-radius:50px;font-size:12px;font-weight:800}
+.plan-name{font-size:20px;font-weight:800;color:var(--primary);margin-bottom:10px}
+.plan-price{font-size:48px;font-weight:900;color:var(--text);margin-bottom:5px}
+.plan-price span{font-size:20px;color:var(--dim)}
+.plan-period{color:var(--dim);margin-bottom:30px}
+.plan-features{list-style:none;margin-bottom:30px}
+.plan-features li{padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);color:var(--dim)}
+.plan-features li::before{content:'✓';color:var(--primary);font-weight:900;margin-right:10px}
+
+/* Disclaimer */
+.disclaimer{padding:60px 20px;background:var(--darker);text-align:center}
+.disclaimer-box{max-width:900px;margin:0 auto;padding:30px;background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.3);border-radius:16px}
+.disclaimer-title{font-size:20px;font-weight:800;color:#ffa726;margin-bottom:15px}
+.disclaimer-text{color:var(--dim);line-height:1.8;font-size:14px}
+
+/* Footer */
+.footer{padding:40px 20px;background:var(--dark);text-align:center;border-top:1px solid rgba(255,255,255,0.05)}
+.footer-links{display:flex;gap:30px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
+.footer-links a{color:var(--dim);text-decoration:none;font-size:14px}
+.footer-links a:hover{color:var(--primary)}
+.footer-text{color:var(--dim);font-size:14px}
+
+/* Responsive */
+@media (max-width:768px){
+.hero{padding:60px 20px}
+.stats-grid,.features-grid,.pricing-grid{grid-template-columns:1fr}
+.plan-card.popular{transform:scale(1)}
+.cta-buttons{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+<div class="hero-content">
+<div class="hero-badge">🤖 Bot Automático 24/7</div>
+<h1 class="hero-title">STRATEGOS.HC</h1>
+<p class="hero-subtitle">Bot de trading automático que opera mientras duermes. 9 estrategias profesionales, gestión de riesgo inteligente y soporte dedicado.</p>
+<div class="cta-buttons">
+<a href="pricing.html" class="btn btn-primary">🚀 Comenzar Prueba Gratis</a>
+<a href="#features" class="btn btn-secondary">Ver Características</a>
+</div>
+</div>
+</section>
+
+<!-- Stats -->
+<section class="stats">
+<div class="stats-grid">
+<div class="stat-item">
+<div class="stat-number">24/7</div>
+<div class="stat-label">Operando</div>
+</div>
+<div class="stat-item">
+<div class="stat-number">9</div>
+<div class="stat-label">Estrategias</div>
+</div>
+<div class="stat-item">
+<div class="stat-number">11+</div>
+<div class="stat-label">Pares</div>
+</div>
+<div class="stat-item">
+<div class="stat-number">100%</div>
+<div class="stat-label">Automático</div>
+</div>
+</div>
+</section>
+
+<!-- Features -->
+<section id="features" class="features">
+<h2 class="section-title">¿Por qué STRATEGOS.HC?</h2>
+<div class="features-grid">
+<div class="feature-card">
+<div class="feature-icon">🤖</div>
+<h3 class="feature-title">100% Automático</h3>
+<p class="feature-description">9 estrategias analizando el mercado cada 5 minutos. RSI, MACD, Bollinger, ADX y más.</p>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🛡️</div>
+<h3 class="feature-title">BE Progresivo</h3>
+<p class="feature-description">Protección automática de ganancias. Break Even inteligente que asegura tus profits.</p>
+</div>
+<div class="feature-card">
+<div class="feature-icon">💰</div>
+<h3 class="feature-title">Multi-TP</h3>
+<p class="feature-description">3 niveles de Take Profit para maximizar ganancias en cada operación.</p>
+</div>
+<div class="feature-card">
+<div class="feature-icon">📱</div>
+<h3 class="feature-title">Control Telegram</h3>
+<p class="feature-description">Recibe alertas y controla el bot desde tu celular en tiempo real.</p>
+</div>
+<div class="feature-card">
+<div class="feature-icon">📊</div>
+<h3 class="feature-title">Dashboard Pro</h3>
+<p class="feature-description">Estadísticas detalladas, gráficos en tiempo real y gestión completa.</p>
+</div>
+<div class="feature-card">
+<div class="feature-icon">🔒</div>
+<h3 class="feature-title">100% Seguro</h3>
+<p class="feature-description">Tus API keys nunca salen de tu cuenta. Sin acceso a retiros.</p>
+</div>
+</div>
+</section>
+
+<!-- Pricing -->
+<section class="pricing">
+<h2 class="section-title">Planes y Precios</h2>
+<div class="pricing-grid">
+<div class="plan-card">
+<div class="plan-name">FREE</div>
+<div class="plan-price">$0<span>/mes</span></div>
+<div class="plan-period">7 días de prueba</div>
+<ul class="plan-features">
+<li>Solo BTC/USDT</li>
+<li>Max 2 ops simultáneas</li>
+<li>Todas las estrategias</li>
+<li>Soporte por email</li>
+</ul>
+<a href="pricing.html" class="btn btn-secondary" style="width:100%;text-align:center;display:block">Probar Gratis</a>
+</div>
+
+<div class="plan-card">
+<div class="plan-name">BÁSICO</div>
+<div class="plan-price">$29<span>/mes</span></div>
+<div class="plan-period">Renovación mensual</div>
+<ul class="plan-features">
+<li>Todos los pares</li>
+<li>Max 3 ops simultáneas</li>
+<li>Todas las estrategias</li>
+<li>Soporte prioritario</li>
+</ul>
+<a href="pricing.html" class="btn btn-secondary" style="width:100%;text-align:center;display:block">Comenzar</a>
+</div>
+
+<div class="plan-card popular">
+<div class="plan-name">PREMIUM</div>
+<div class="plan-price">$79<span>/mes</span></div>
+<div class="plan-period">Más vendido</div>
+<ul class="plan-features">
+<li>Todos los pares</li>
+<li>Max 5 ops simultáneas</li>
+<li>Estrategias avanzadas</li>
+<li>Soporte Telegram</li>
+<li>Trailing Stop</li>
+</ul>
+<a href="pricing.html" class="btn btn-primary" style="width:100%;text-align:center;display:block">Suscribirse</a>
+</div>
+
+<div class="plan-card">
+<div class="plan-name">VIP</div>
+<div class="plan-price">$199<span>/mes</span></div>
+<div class="plan-period">Para traders serios</div>
+<ul class="plan-features">
+<li>Ilimitado todo</li>
+<li>Estrategias custom</li>
+<li>Multi-timeframe</li>
+<li>Soporte 24/7</li>
+<li>Config personalizada</li>
+</ul>
+<a href="pricing.html" class="btn btn-primary" style="width:100%;text-align:center;display:block">Contactar</a>
+</div>
+</div>
+</section>
+
+<!-- Disclaimer -->
+<section class="disclaimer">
+<div class="disclaimer-box">
+<div class="disclaimer-title">⚠️ Aviso Importante</div>
+<p class="disclaimer-text">
+El trading de criptomonedas implica riesgos significativos y puede resultar en la pérdida total de capital. 
+STRATEGOS.HC es una herramienta de automatización que ejecuta estrategias predefinidas, pero no garantiza 
+ganancias ni resultados específicos. Los rendimientos pasados no aseguran resultados futuros. 
+Opera únicamente con capital que puedas permitirte perder. Recomendamos comenzar con el plan FREE 
+para familiarizarte con el sistema antes de invertir capital real.
+</p>
+</div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+<div class="footer-links">
+<a href="terms.html">Términos de Servicio</a>
+<a href="privacy.html">Política de Privacidad</a>
+<a href="mailto:support@strategos.hc">Contacto</a>
+<a href="https://t.me/strategoshc">Telegram Soporte</a>
+</div>
+<div class="footer-text">© 2025 STRATEGOS.HC - Todos los derechos reservados</div>
+</footer>
+
+</body>
+</html>
